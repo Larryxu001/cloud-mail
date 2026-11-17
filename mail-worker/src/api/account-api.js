@@ -28,6 +28,11 @@ app.put('/account/setAllReceive', async (c) => {
 	return c.json(result.ok());
 });
 
+app.put('/account/unpin', async (c) => {
+	await accountService.unpin(c, await c.req.json(), userContext.getUserId(c));
+	return c.json(result.ok());
+});
+
 app.put('/account/setAsTop', async (c) => {
 	await accountService.setAsTop(c, await c.req.json(), userContext.getUserId(c));
 	return c.json(result.ok());

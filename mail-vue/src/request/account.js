@@ -23,3 +23,7 @@ export function accountSetAllReceive(accountId) {
 export function accountSetAsTop(accountId) {
     return http.put('/account/setAsTop', {accountId})
 }
+
+export function accountUnpin(accountId) {
+    return http.put('/account/unpin', {accountId})
+}

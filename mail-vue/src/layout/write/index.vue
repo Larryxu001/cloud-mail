@@ -1,49 +1,126 @@
 <template>
   <div class="send" v-show="show">
-    <div class="write-box">
-      <div class="title">
+    <div class="write-box" ref="boxRef" :class="'mode-' + winMode"
+         :style="winMode === 'normal' ? {transform: `translate(${pos.x}px, ${pos.y}px)`} : {}">
+      <div class="title" @mousedown="startDrag" @dblclick="toggleMax" @click="winMode === 'min' && toggleMin()">
         <div class="title-left">
           <span class="title-text">
             <Icon icon="hugeicons:quill-write-01" width="28" height="28"/>
           </span>
           <span class="sender">{{ $t('sender') }}:</span>
-          <span class="sender-name">{{ form.name }}</span>
-          <span class="send-email"><{{ form.sendEmail }}></span>
+          <el-select class="sender-select" v-model="form.accountId" size="small" filterable
+                     :teleported="true" @mousedown.stop @change="changeSender" @visible-change="v => v && loadSenders()">
+            <template #label>
+              <span class="sender-name">{{ form.name }}</span>
+              <span class="send-email">&lt;{{ form.sendEmail }}&gt;</span>
+            </template>
+            <el-option v-for="acc in senderList" :key="acc.accountId" :value="acc.accountId" :label="acc.email">
+              <span>{{ acc.email }}</span>
+            </el-option>
+          </el-select>
         </div>
-        <div @click="close" style="cursor: pointer;">
-          <Icon icon="material-symbols-light:close-rounded" width="22" height="22"/>
+        <div class="win-actions" @mousedown.stop>
+          <span class="win-btn" :title="winMode === 'min' ? $t('winRestore') : $t('winMinimize')" @click="toggleMin">
+            <Icon :icon="winMode === 'min' ? 'fluent:window-arrow-up-24-regular' : 'fluent:subtract-24-regular'" width="18" height="18"/>
+          </span>
+          <span class="win-btn hide-mobile" :title="winMode === 'max' ? $t('winRestore') : $t('winMaximize')" @click="toggleMax">
+            <Icon :icon="winMode === 'max' ? 'fluent:arrow-minimize-24-regular' : 'fluent:arrow-maximize-24-regular'" width="18" height="18"/>
+          </span>
+          <span class="win-btn win-close" @click="close">
+            <Icon icon="material-symbols-light:close-rounded" width="22" height="22"/>
+          </span>
         </div>
       </div>
       <div class="container">
-        <el-input-tag  @add-tag="addTagChange" tag-type="primary" @input="inputChange" size="default" v-model="form.receiveEmail" >
-          <template #prefix>
-            <div class="item-title" >{{ $t('recipient') }}</div>
-            <el-select
-                ref="mySelect"
-                class="write-select"
-                popper-class="write-select"
-                :show-arrow="false"
-                :no-match-text="' '"
-                :no-data-text="' '"
-                @visible-change="selectStatusChange"
-                @change="selectChange"
-            >
-              <el-option
-                  v-for="item in selectRecipientList"
-                  :key="item"
-                  :label="item"
-                  :value="item"
-                  style="color: #999896;"
-              />
-            </el-select>
-          </template>
-          <template #suffix>
-            <div style="display: flex;margin-right: 3px;">
-              <Icon icon="fa7-solid:user-plus" width="20" height="20" class="add-contact" @click.stop="openContacts" />
-            </div>
-          </template>
-        </el-input-tag>
-        <el-input v-model="form.subject" :placeholder="t('subject')" />
+        <div class="address-fields">
+          <el-input-tag  @add-tag="addTagChange" tag-type="primary" @input="value => updateSuggest('receive', value)" size="large" v-model="form.receiveEmail" >
+            <template #prefix>
+              <div class="item-title" >{{ $t('recipient') }}</div>
+              <el-select
+                  ref="mySelect"
+                  class="write-select"
+                  popper-class="write-select"
+                  :show-arrow="false"
+                  :no-match-text="' '"
+                  :no-data-text="' '"
+                  @visible-change="status => suggestStatusChange('receive', status)"
+                  @change="value => suggestChange('receive', value)"
+              >
+                <el-option
+                    v-for="item in selectRecipientList"
+                    :key="item"
+                    :label="item"
+                    :value="item"
+                    style="color: #999896;"
+                />
+              </el-select>
+            </template>
+            <template #suffix>
+              <div class="address-actions">
+                <button type="button" class="address-toggle" v-if="form.manyType !== 'divide' && !showCc" @click.stop="openCc">CC</button>
+                <button type="button" class="address-toggle" v-if="form.manyType !== 'divide' && !showBcc" @click.stop="openBcc">BCC</button>
+                <Icon icon="fa7-solid:user-plus" width="20" height="20" class="add-contact" @click.stop="openContacts('receive')" />
+              </div>
+            </template>
+          </el-input-tag>
+          <el-input-tag v-if="form.manyType !== 'divide' && showCc" ref="ccInputRef" tag-type="primary" size="large" v-model="form.ccEmail" @input="value => updateSuggest('cc', value)" @add-tag="addCcTag">
+            <template #prefix>
+              <div class="item-title">{{ $t('cc') }}</div>
+              <el-select
+                  ref="ccSelectRef"
+                  class="write-select"
+                  popper-class="write-select"
+                  :show-arrow="false"
+                  :no-match-text="' '"
+                  :no-data-text="' '"
+                  @visible-change="status => suggestStatusChange('cc', status)"
+                  @change="value => suggestChange('cc', value)"
+              >
+                <el-option
+                    v-for="item in ccSuggestList"
+                    :key="item"
+                    :label="item"
+                    :value="item"
+                    style="color: #999896;"
+                />
+              </el-select>
+            </template>
+            <template #suffix>
+              <div class="address-actions">
+                <Icon icon="fa7-solid:user-plus" width="20" height="20" class="add-contact" @click.stop="openContacts('cc')" />
+              </div>
+            </template>
+          </el-input-tag>
+          <el-input-tag v-if="form.manyType !== 'divide' && showBcc" ref="bccInputRef" tag-type="primary" size="large" v-model="form.bccEmail" @input="value => updateSuggest('bcc', value)" @add-tag="addBccTag">
+            <template #prefix>
+              <div class="item-title">{{ $t('bcc') }}</div>
+              <el-select
+                  ref="bccSelectRef"
+                  class="write-select"
+                  popper-class="write-select"
+                  :show-arrow="false"
+                  :no-match-text="' '"
+                  :no-data-text="' '"
+                  @visible-change="status => suggestStatusChange('bcc', status)"
+                  @change="value => suggestChange('bcc', value)"
+              >
+                <el-option
+                    v-for="item in bccSuggestList"
+                    :key="item"
+                    :label="item"
+                    :value="item"
+                    style="color: #999896;"
+                />
+              </el-select>
+            </template>
+            <template #suffix>
+              <div class="address-actions">
+                <Icon icon="fa7-solid:user-plus" width="20" height="20" class="add-contact" @click.stop="openContacts('bcc')" />
+              </div>
+            </template>
+          </el-input-tag>
+        </div>
+        <el-input v-model="form.subject" :placeholder="t('subject')" size="large"  @focus="hideEmptyCcBcc" style="padding-bottom: 4px" />
         <tinyEditor :def-value="defValue" ref="editor" @change="change" @focus="focusChange" />
         <div class="button-item">
           <div class="att-add" @click="chooseFile">
@@ -62,15 +139,25 @@
             </div>
           </div>
           <div>
-            <el-button type="primary" @click="sendEmail" v-if="form.sendType === 'reply'">{{ $t('reply') }}</el-button>
-            <el-button type="primary" @click="sendEmail" v-else-if="form.sendType === 'forward'">{{ $t('forward') }}</el-button>
-            <el-button type="primary" @click="sendEmail" v-else>{{ $t('send') }}</el-button>
+            <el-dropdown split-button type="primary" trigger="click" @click="sendEmail" @command="selectSendMode">
+              {{ sendButtonLabel }}
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="together">
+                    {{ $t(form.sendType === 'forward' ? 'forward' : 'send') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item command="divide">
+                    {{ separateSendLabel }}
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </div>
         </div>
       </div>
     </div>
     <el-dialog top="10vh" v-model="showContacts" @closed="clearSelectContact" :title="t('recentContacts')">
-      <el-table ref="contactsTabRef" row-key="email" :data="contacts" style="height: 445px">
+      <el-table class="contacts-table" ref="contactsTabRef" row-key="email" :data="contacts" style="height: 445px" @row-click="toggleContactRow">
         <el-table-column type="selection" width="32" />
         <el-table-column property="email" :label="t('emailAccount')" >
           <template #default="props">
@@ -94,12 +181,13 @@
 </template>
 <script setup>
 import tinyEditor from '@/components/tiny-editor/index.vue'
-import {h, nextTick, onMounted, onUnmounted, reactive, ref, toRaw, computed} from "vue";
+import {h, nextTick, onMounted, onUnmounted, reactive, ref, toRaw, computed, watch} from "vue";
 import {Icon} from "@iconify/vue";
 import {useUserStore} from "@/store/user.js";
 import {emailSend} from "@/request/email.js";
 import {isEmail} from "@/utils/verify-utils.js";
 import {useAccountStore} from "@/store/account.js";
+import {accountList} from "@/request/account.js";
 import {useEmailStore} from "@/store/email.js";
 import {fileToBase64, formatBytes} from "@/utils/file-utils.js";
 import {getIconByName} from "@/utils/icon-utils.js";
@@ -137,8 +225,15 @@ let sending = false
 const defValue = ref('')
 const contactsTabRef = ref({})
 const showContacts = ref(false)
+const contactTarget = ref('receive')
+const showCc = ref(false)
+const showBcc = ref(false)
+const ccInputRef = ref()
+const bccInputRef = ref()
 const mySelect = ref()
-let selectStatus = false
+const ccSelectRef = ref()
+const bccSelectRef = ref()
+const suggestOpen = { receive: false, cc: false, bcc: false }
 const backReply = reactive({
   receiveEmail: [],
   subject: '',
@@ -148,11 +243,14 @@ const backReply = reactive({
 const form = reactive({
   sendEmail: '',
   receiveEmail: [],
+  ccEmail: [],
+  bccEmail: [],
   accountId: -1,
   name: '',
   subject: '',
   content: '',
   sendType: '',
+  manyType: 'together',
   text: '',
   emailId: 0,
   attachments: [],
@@ -160,13 +258,117 @@ const form = reactive({
 })
 
 const selectRecipientList = ref([])
+const ccSuggestList = ref([])
+const bccSuggestList = ref([])
+const suggestListMap = { receive: selectRecipientList, cc: ccSuggestList, bcc: bccSuggestList }
+const suggestSelectMap = { receive: mySelect, cc: ccSelectRef, bcc: bccSelectRef }
+const suggestFieldMap = { receive: 'receiveEmail', cc: 'ccEmail', bcc: 'bccEmail' }
+
+// ---- 窗口：拖动 / 最大化 / 最小化（类 Outlook 弹出写信窗口） ----
+const boxRef = ref()
+const winMode = ref('normal') // normal | max | min
+const pos = reactive({x: 0, y: 0})
+let drag = null
+
+function startDrag(e) {
+  if (winMode.value !== 'normal' || e.button !== 0 || window.innerWidth <= 1024) return
+  const r = boxRef.value.getBoundingClientRect()
+  drag = {sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y, bl: r.left - pos.x, bt: r.top - pos.y, w: r.width}
+  document.addEventListener('mousemove', onDrag)
+  document.addEventListener('mouseup', stopDrag)
+  document.body.style.userSelect = 'none'
+}
+
+function onDrag(e) {
+  if (!drag) return
+  let x = drag.ox + e.clientX - drag.sx
+  let y = drag.oy + e.clientY - drag.sy
+  // 保证标题栏始终留在可视区域内，避免拖出屏幕找不回来
+  x = Math.min(Math.max(x, 80 - drag.bl - drag.w), window.innerWidth - 80 - drag.bl)
+  y = Math.min(Math.max(y, -drag.bt), window.innerHeight - 48 - drag.bt)
+  cancelAnimationFrame(rafId)
+  rafId = requestAnimationFrame(() => {
+    pos.x = x
+    pos.y = y
+  })
+}
+
+function stopDrag() {
+  drag = null
+  document.removeEventListener('mousemove', onDrag)
+  document.removeEventListener('mouseup', stopDrag)
+  document.body.style.userSelect = ''
+}
+
+function toggleMax() {
+  if (window.innerWidth <= 1024) return
+  winMode.value = winMode.value === 'max' ? 'normal' : 'max'
+}
+
+function toggleMin() {
+  winMode.value = winMode.value === 'min' ? 'normal' : 'min'
+}
+
+const senderList = ref([])
+
+function loadSenders() {
+  accountList(0, 100, null).then(list => {
+    senderList.value = list || []
+  }).catch(() => {})
+}
+
+function changeSender(id) {
+  const acc = senderList.value.find(a => a.accountId === id)
+  if (!acc) return
+  form.sendEmail = acc.email
+  form.name = acc.name || acc.email.split("@")[0]
+}
+
+let rafId = 0
+function resetWindow() {
+  winMode.value = 'normal'
+  pos.x = 0
+  pos.y = 0
+  if (boxRef.value) {
+    boxRef.value.style.width = ''
+    boxRef.value.style.height = ''
+  }
+}
 
 const contacts = computed(() => writerStore.sendRecipientRecord.map(item => ({email: item})))
+const separateSendLabel = computed(() => t(form.sendType === 'forward' ? 'separateForward' : 'separateSend'))
+const sendButtonLabel = computed(() => {
+  if (form.manyType === 'divide') return separateSendLabel.value
+  if (form.sendType === 'reply') return t('reply')
+  if (form.sendType === 'forward') return t('forward')
+  return t('send')
+})
 
-function openContacts() {
+function clearCcBcc() {
+  form.ccEmail = []
+  form.bccEmail = []
+  showCc.value = false
+  showBcc.value = false
+}
+
+function selectSendMode(mode) {
+  form.manyType = mode
+  if (mode === 'divide') {
+    clearCcBcc()
+  }
+}
+
+function targetAddressKey() {
+  if (contactTarget.value === 'cc') return 'ccEmail'
+  if (contactTarget.value === 'bcc') return 'bccEmail'
+  return 'receiveEmail'
+}
+
+function openContacts(target = 'receive') {
+  contactTarget.value = target
   showContacts.value = true
   nextTick(() => {
-    form.receiveEmail.forEach(item => {
+    form[targetAddressKey()].forEach(item => {
       if (writerStore.sendRecipientRecord.includes(item)) {
         contactsTabRef.value.toggleRowSelection({email: item});
       }
@@ -181,7 +383,8 @@ function deleteContact() {
     type: 'warning'
   }).then(() => {
     const contactList = contactsTabRef.value.getSelectionRows().map(item => item.email);
-    form.receiveEmail = form.receiveEmail.filter(item => !contactList.includes(item));
+    const key = targetAddressKey()
+    form[key] = form[key].filter(item => !contactList.includes(item));
     writerStore.sendRecipientRecord = writerStore.sendRecipientRecord.filter(item => !contactList.includes(item));
   })
 }
@@ -189,13 +392,14 @@ function deleteContact() {
 function chooseContact() {
 
   const contactList = contactsTabRef.value.getSelectionRows().map(item => item.email);
+  const key = targetAddressKey()
   contactList.forEach(item => {
-    if (!form.receiveEmail.includes(item)) {
-      form.receiveEmail.push(item);
+    if (!form[key].includes(item)) {
+      form[key].push(item);
     }
   })
 
-  form.receiveEmail = form.receiveEmail.filter(item => {
+  form[key] = form[key].filter(item => {
     return contactList.includes(item) || !writerStore.sendRecipientRecord.includes(item);
   });
 
@@ -206,51 +410,93 @@ function clearSelectContact() {
   contactsTabRef.value.clearSelection();
 }
 
-function selectChange(value) {
-  form.receiveEmail.push(value)
+function toggleContactRow(row, column) {
+  if (column?.type === 'selection') return
+  contactsTabRef.value.toggleRowSelection(row)
 }
 
-function selectStatusChange(status) {
-  selectStatus = status
+function toggleSuggest(target) {
+  suggestSelectMap[target].value?.toggleMenu()
 }
 
-const openSelect = () => {
-  mySelect.value.toggleMenu()
+function suggestStatusChange(target, status) {
+  suggestOpen[target] = status
 }
 
-function inputChange(value) {
+function suggestChange(target, value) {
+  form[suggestFieldMap[target]].push(value)
+}
 
-  selectRecipientList.value = writerStore.sendRecipientRecord.filter(item => value && !form.receiveEmail.includes(item) && item.startsWith(value)).slice(0, 10);
+function updateSuggest(target, value) {
+  const field = suggestFieldMap[target]
+  const list = writerStore.sendRecipientRecord.filter(item => value && !form[field].includes(item) && item.startsWith(value)).slice(0, 10)
+  suggestListMap[target].value = list
 
-  if (!selectStatus && selectRecipientList.value.length > 0) {
-    openSelect()
+  if (!suggestOpen[target] && list.length > 0) {
+    toggleSuggest(target)
   }
 
-  if (selectStatus && selectRecipientList.value.length === 0) {
-    openSelect()
+  if (suggestOpen[target] && list.length === 0) {
+    toggleSuggest(target)
   }
-
 }
 
-function addTagChange(val) {
+function closeOpenSuggest() {
+  for (const target of ['receive', 'cc', 'bcc']) {
+    if (suggestOpen[target]) toggleSuggest(target)
+  }
+}
 
+function addAddressTag(list, val) {
   const emails = Array.from(new Set(
       val.split(/[,，]/).map(item => item.trim()).filter(item => item)
   ));
 
-  form.receiveEmail.splice(form.receiveEmail.length - 1, 1)
+  list.splice(list.length - 1, 1)
 
   let has = false
   emails.forEach(email => {
-    if (isEmail(email) && !form.receiveEmail.includes(email)) {
-      form.receiveEmail.push(email)
+    if (isEmail(email) && !list.includes(email)) {
+      list.push(email)
       has = true
     }
   })
-  if (selectStatus && has) openSelect()
+  return has
+}
+
+function addTagChange(val) {
+  if (addAddressTag(form.receiveEmail, val) && suggestOpen.receive) toggleSuggest('receive')
+}
+
+function addCcTag(val) {
+  if (addAddressTag(form.ccEmail, val) && suggestOpen.cc) toggleSuggest('cc')
+}
+
+function addBccTag(val) {
+  if (addAddressTag(form.bccEmail, val) && suggestOpen.bcc) toggleSuggest('bcc')
+}
+
+function openCc() {
+  showCc.value = true
+  nextTick(() => ccInputRef.value?.focus?.())
+}
+
+function openBcc() {
+  showBcc.value = true
+  nextTick(() => bccInputRef.value?.focus?.())
+}
+
+function hideEmptyCcBcc() {
+  if (showCc.value && form.ccEmail.length === 0) {
+    showCc.value = false
+  }
+  if (showBcc.value && form.bccEmail.length === 0) {
+    showBcc.value = false
+  }
 }
 
 function clearContent() {
+  hideEmptyCcBcc()
   ElMessageBox.confirm(t('clearContentConfirm'), {
     confirmButtonText: t('confirm'),
     cancelButtonText: t('cancel'),
@@ -266,6 +512,7 @@ function delAtt(index) {
 }
 
 function chooseFile() {
+  hideEmptyCcBcc()
   const doc = document.createElement("input")
   doc.setAttribute("type", "file")
   doc.multiple = true;
@@ -289,6 +536,7 @@ function chooseFile() {
 }
 
 async function sendEmail() {
+  hideEmptyCcBcc()
 
   if (form.receiveEmail.length === 0) {
     ElMessage({
@@ -308,22 +556,11 @@ async function sendEmail() {
     return
   }
 
-  if (!form.content) {
-    form.content = editor.value.getContent();
-  }
+  form.content = editor.value.getContent();
 
   if (!form.content) {
     ElMessage({
       message: t('emptyContentMsg'),
-      type: 'error',
-      plain: true,
-    })
-    return
-  }
-
-  if (form.manyType === 'divide' && form.attachments.length > 0) {
-    ElMessage({
-      message: t('noSeparateSendMsg'),
       type: 'error',
       plain: true,
     })
@@ -353,11 +590,27 @@ async function sendEmail() {
 
   emailSend(form, (e) => {
     percent.value = Math.round((e.loaded * 98) / e.total)
-  }).then(emailList => {
+  }).then(result => {
+    const emailList = Array.isArray(result) ? result : result.emails
     const email = emailList[0]
     emailList.forEach(item => {
       emailStore.sendScroll?.addItem(item)
     })
+
+    userStore.refreshUserInfo();
+    addRecipientRecord();
+
+    if (result.failedRecipients?.length) {
+      form.receiveEmail = result.failedRecipients
+      show.value = true
+      ElNotification({
+        title: t('partialSendMsg', {count: emailList.length, failed: result.failedRecipients.length}),
+        type: 'warning',
+        message: result.error,
+        position: 'bottom-right'
+      })
+      return
+    }
 
     ElNotification({
       title: t('sendSuccessMsg'),
@@ -365,10 +618,6 @@ async function sendEmail() {
       message: h('span', {style: 'color: teal'}, email.subject),
       position: 'bottom-right'
     })
-
-    userStore.refreshUserInfo();
-
-    addRecipientRecord();
 
     if (form.draftId) {
       form.subject = ''
@@ -400,19 +649,32 @@ async function sendEmail() {
 }
 
 function addRecipientRecord() {
+  const seen = new Set()
+  const addresses = []
+  for (const email of [...form.receiveEmail, ...form.ccEmail, ...form.bccEmail]) {
+    const key = String(email).trim().toLowerCase()
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    addresses.push(email)
+  }
+
   writerStore.sendRecipientRecord = writerStore.sendRecipientRecord.filter(
-      email => !form.receiveEmail.includes(email)
+      email => !seen.has(String(email).trim().toLowerCase())
   );
 
-  writerStore.sendRecipientRecord.unshift(...form.receiveEmail);
+  writerStore.sendRecipientRecord.unshift(...addresses);
   writerStore.sendRecipientRecord = writerStore.sendRecipientRecord.slice(0, 500);
 }
 
 function resetForm() {
   form.receiveEmail = []
+  form.ccEmail = []
+  form.bccEmail = []
+  showCc.value = false
+  showBcc.value = false
   form.subject = ''
   form.content = ''
-  form.manyType = null
+  form.manyType = 'together'
   form.attachments = []
   form.sendType = ''
   form.emailId = 0
@@ -430,7 +692,8 @@ function change(content, text) {
 }
 
 function focusChange() {
-  if (selectStatus) openSelect()
+  closeOpenSuggest()
+  hideEmptyCcBcc()
 }
 
 function openForward(email) {
@@ -516,14 +779,28 @@ function open() {
     form.accountId = accountStore.currentAccount.accountId;
     form.name = accountStore.currentAccount.name;
   }
+  if (winMode.value === 'min') winMode.value = 'normal'
   show.value = true;
   editor.value.focus()
 }
 
+// 窗口关闭后恢复默认位置和大小，下次打开回到居中
+watch(show, (val) => {
+  if (!val) resetWindow()
+})
+
 function openDraft(draft) {
-  Object.assign(form, {...draft})
+  Object.assign(form, {...draft, manyType: draft.manyType || 'together'})
+  form.ccEmail = draft.ccEmail || []
+  form.bccEmail = draft.bccEmail || []
+  if (form.manyType === 'divide') {
+    clearCcBcc()
+  }
+  showCc.value = form.ccEmail.length > 0
+  showBcc.value = form.bccEmail.length > 0
   defValue.value = ''
   setTimeout(() => defValue.value = form.content)
+  if (winMode.value === 'min') winMode.value = 'normal'
   show.value = true;
   editor.value.focus()
 }
@@ -544,7 +821,7 @@ onUnmounted(() => {
 
 function close() {
 
-  if (selectStatus) openSelect();
+  closeOpenSuggest();
 
   if (!form.content) {
     form.content = editor.value.getContent();
@@ -557,7 +834,7 @@ function close() {
     return;
   }
 
-  if (!(form.content || form.subject || form.receiveEmail.length > 0)) {
+  if (!(form.content || form.subject || form.receiveEmail.length > 0 || form.ccEmail.length > 0 || form.bccEmail.length > 0)) {
     show.value = false
     resetForm()
     return;
@@ -605,6 +882,10 @@ function close() {
 
 </script>
 <style>
+.sender-select { width: 340px; margin-left: 4px; }
+.sender-select :deep(.el-select__wrapper) { box-shadow: none !important; background: transparent; padding: 0 6px; min-height: 26px; cursor: pointer; }
+.sender-select :deep(.el-select__wrapper:hover) { background: rgba(15,108,189,.08); }
+
 .write-select .el-select-dropdown__list {
   padding: 4px 4px !important;
 }
@@ -629,11 +910,12 @@ function close() {
 
   .write-box {
     background: var(--el-bg-color);
-    width: min(1367px, calc(100% - 80px));
-    box-shadow: var(--el-box-shadow-light);
-    border: 1px solid var(--el-border-color-light);
-    transition: var(--el-transition-duration);
-    padding: 15px;
+    width: min(1100px, calc(100% - 80px));
+    box-shadow: 0 32px 64px rgba(0, 0, 0, .24), 0 0 8px rgba(0, 0, 0, .2);
+    border: 1px solid var(--el-border-color);
+    transition: none;
+    will-change: transform;
+    padding: 0 20px 16px;
     border-radius: 8px;
     display: grid;
     grid-template-rows: auto 1fr;
@@ -653,7 +935,11 @@ function close() {
     .title {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 10px;
+      margin: 0 -20px 10px;
+      padding: 10px 20px;
+      background: var(--el-color-primary-light-9);
+      border-bottom: 1px solid var(--el-border-color);
+      color: var(--el-color-primary);
 
       .title-left {
         align-items: center;
@@ -668,9 +954,13 @@ function close() {
         margin-left: 8px;
       }
 
+      .sender, .sender-name {
+        color: var(--el-text-color-primary);
+      }
+
       .sender-name {
         margin-left: 8px;
-        font-weight: bold;
+        font-weight: 600;
       }
 
       .send-email {
@@ -692,7 +982,63 @@ function close() {
       height: 100%;
       display: grid;
       grid-template-rows: auto auto 1fr auto;
-      gap: 15px;
+      gap: 5px;
+
+      .address-fields {
+        display: grid;
+      }
+
+      :deep(.el-input-tag) {
+        padding-right: 0;
+        padding-left: 0;
+      }
+
+      :deep(.el-input-tag__suffix) {
+        padding-right: 5px;
+      }
+      :deep(.el-input-tag__prefix) {
+        padding-left: 5px;
+      }
+
+      :deep(.el-input__wrapper) {
+        padding-left: 5px;
+        padding-right: 5px;
+      }
+
+      :deep(.el-input-tag),
+      :deep(.el-input__wrapper),
+      :deep(.el-input-tag.is-focused),
+      :deep(.el-input-tag.is-hovering),
+      :deep(.el-input-tag:hover),
+      :deep(.el-input__wrapper.is-focus),
+      :deep(.el-input__wrapper:hover) {
+        box-shadow: none;
+        border-radius: 0;
+        border-bottom: 1px solid var(--el-border-color-lighter);
+      }
+
+      .address-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-right: 3px;
+      }
+
+      .address-toggle {
+        border: none;
+        background: transparent;
+        padding: 0;
+        color: var(--regular-text-color);
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1;
+        cursor: pointer;
+
+        &:hover,
+        &:focus {
+          color: var(--regular-text-color);
+        }
+      }
 
       .item-title {
       }
@@ -744,6 +1090,125 @@ function close() {
 
 }
 
+/* ---- 可移动 / 可缩放 / 最大化 / 最小化 ---- */
+.send {
+  pointer-events: none;
+
+  :deep(.el-overlay) {
+    pointer-events: auto;
+  }
+}
+
+.write-box {
+  pointer-events: auto;
+  position: relative;
+
+  @media (min-width: 1025px) {
+    resize: both;
+    min-width: 560px;
+    min-height: 420px;
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+
+    .title {
+      cursor: move;
+    }
+  }
+
+  &.mode-max {
+    width: calc(100vw - 24px) !important;
+    height: calc(100vh - 24px) !important;
+    max-width: none;
+    max-height: none;
+    resize: none;
+
+    .title {
+      cursor: default;
+    }
+  }
+
+  &.mode-min {
+    position: fixed;
+    right: 24px;
+    bottom: 0;
+    width: 380px !important;
+    height: auto !important;
+    min-width: 0;
+    min-height: 0;
+    resize: none;
+    padding-bottom: 0;
+    border-radius: 8px 8px 0 0;
+
+    .title {
+      margin-bottom: 0;
+      border-bottom: 0;
+      cursor: pointer;
+    }
+
+    .container {
+      display: none;
+    }
+
+    @media (max-width: 1024px) {
+      right: 0;
+      width: 100% !important;
+      border-radius: 0;
+    }
+  }
+}
+
+.win-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+
+  .win-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--el-text-color-primary);
+  }
+
+  .win-btn:hover {
+    background: rgba(0, 0, 0, 0.06);
+  }
+
+  .win-close:hover {
+    background: #C42B1C;
+    color: #ffffff;
+  }
+
+  .hide-mobile {
+    @media (max-width: 1024px) {
+      display: none;
+    }
+  }
+}
+
+/* Outlook-style underlined recipient / subject fields */
+.container :deep(.el-input__wrapper),
+.container :deep(.el-input-tag) {
+  box-shadow: none !important;
+  border-radius: 0;
+  border-bottom: 1px solid var(--el-border-color);
+  background: transparent;
+}
+
+.container :deep(.el-input__wrapper.is-focus),
+.container :deep(.el-input-tag.is-focus) {
+  border-bottom: 2px solid var(--el-color-primary);
+}
+
+.button-item :deep(.el-button--primary) {
+  min-width: 88px;
+  height: 32px;
+}
+
 .email-row {
   white-space: nowrap;
   overflow: hidden;
@@ -765,6 +1230,10 @@ function close() {
   margin-top: 10px;
 }
 
+.contacts-table :deep(.el-table__row) {
+  cursor: pointer;
+}
+
 .add-contact {
   color: var(--regular-text-color)
 }
@@ -776,10 +1245,6 @@ function close() {
   z-index: 0;
   opacity: 0;
   pointer-events: none;
-}
-
-:deep(.el-input-tag__suffix) {
-  padding-right: 4px;
 }
 
 .icon {

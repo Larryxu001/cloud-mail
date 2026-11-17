@@ -27,7 +27,7 @@ html, body {
 }
 
 body {
-    font-family: Inter, "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
+    font-family: "Segoe UI", "Segoe UI Web (West European)", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", "微软雅黑", sans-serif;
     line-height: 1.5;
     color: var(--el-text-color-primary);
     font-size: 14px;
@@ -61,6 +61,47 @@ button, input, select, textarea {
 
 .el-message {
     white-space: nowrap !important;
+}
+
+/* ---- Outlook-style global polish ---- */
+.el-button {
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+.el-button--primary:not(.is-plain) {
+    --el-button-hover-bg-color: #115EA3;
+    --el-button-hover-border-color: #115EA3;
+    --el-button-active-bg-color: #0F548C;
+    --el-button-active-border-color: #0F548C;
+}
+
+.el-input__wrapper, .el-select__wrapper, .el-textarea__inner {
+    border-radius: 4px;
+}
+
+.el-dialog {
+    border-radius: 8px !important;
+    box-shadow: 0 32px 64px rgba(0, 0, 0, .24), 0 0 8px rgba(0, 0, 0, .2) !important;
+}
+
+.el-dialog__title {
+    font-weight: 600;
+}
+
+.el-card {
+    border-radius: 4px;
+    box-shadow: none !important;
+}
+
+.el-table th.el-table__cell {
+    background: #FAFAFA !important;
+    color: #424242;
+}
+
+.dark .el-table th.el-table__cell {
+    background: #262727 !important;
+    color: #d6d6d6;
 }
 
 .message-bottom {
@@ -106,20 +147,32 @@ button, input, select, textarea {
 }
 
 :root {
-    --el-color-primary: #1890ff;
-    --el-color-primary-dark-2: #1064c0;
-    --el-color-primary-light-3: #4dabff;
-    --el-color-primary-light-5: #69c0ff;
-    --el-color-primary-light-7: #91d5ff;
-    --el-color-primary-light-9: #e6f7ff;
+    --el-color-primary: #0F6CBD;
+    --el-color-primary-dark-2: #115EA3;
+    --el-color-primary-light-3: #479EF5;
+    --el-color-primary-light-5: #82C0FA;
+    --el-color-primary-light-7: #B4D6FA;
+    --el-color-primary-light-8: #CFE4FA;
+    --el-color-primary-light-9: #EBF3FC;
+    --el-border-radius-base: 4px;
+    --el-border-radius-small: 2px;
+    --el-border-color: #E0E0E0;
+    --el-border-color-light: #E8E8E8;
+    --el-border-color-lighter: #F0F0F0;
+    --el-bg-color-page: #F5F5F5;
+    --el-text-color-primary: #242424;
+    --topbar-background: #0F6CBD;
+    --topbar-height: 48px;
 
-    --extra-light-fill: #FAFCFF;
-    --settings-page-background: #fafbfc;
-    --light-ill: #F5F7FA;
-    --light-border: #E4E7ED;
+    --extra-light-fill: #FAFAFA;
+    --settings-page-background: #FAFAFA;
+    --light-ill: #F5F5F5;
+    --light-border: #E0E0E0;
     --header-actions-border: inset 0 -1px 0 0 var(--el-border-color-lighter);
-    --aside-backgound: #191A23;
-    --aside-menu-active-background: #27282D;
+    --aside-backgound: #F5F5F5;
+    --aside-menu-active-background: #EBF3FC;
+    --aside-text-color: #242424;
+    --aside-hover-background: #EBEBEB;
     --loadding-background: rgba(255, 255, 255, 0.8);
     --dark-border: #CDD0D6;
     --base-fill: #F0F2F5;
@@ -129,8 +182,9 @@ button, input, select, textarea {
     --choose-account-background: var(--el-color-primary-light-8);
     --el-text-color-regular: var(--el-text-color-primary);
     --email-scroll-content-color: rgba(25, 41, 59, 0.4);
-    --email-hover-background: #F2F6FC;
-    --email-right-click-background: #FDF6EC;
+    --search-hit-background: #ffe58f;
+    --email-hover-background: #F5F5F5;
+    --email-right-click-background: #EBF3FC;
     --login-border: none;
     --form-desc-color: #71717a;
     --login-switch-color: #006be6;
@@ -152,6 +206,10 @@ button, input, select, textarea {
     --light-border: #414243;
     --aside-backgound: #141414;
     --aside-menu-active-background: rgba(255, 255, 255, 0.08);
+    --aside-text-color: #e8e8e8;
+    --aside-hover-background: rgba(255, 255, 255, 0.06);
+    --topbar-background: #0B3A5F;
+    --el-color-primary: #479EF5;
     --header-actions-border: inset 0 -1px 0 0 var(--el-border-color-lighter);
     --loadding-background: rgba(0, 0, 0, 0.3);
     --dark-border: #636466;
@@ -161,6 +219,7 @@ button, input, select, textarea {
     --aside-right-border: 3px 0 5px #0A0A0A;
     --choose-account-background: #39393A;
     --email-scroll-content-color: rgba(255, 255, 255, 0.3);
+    --search-hit-background: #8a6a12;
     --email-hover-background: #1D1E1F;
     --email-right-click-background: var(--email-hover-background);
     --login-border: none;

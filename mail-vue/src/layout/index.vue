@@ -1,21 +1,23 @@
 <template>
-  <el-container class="layout">
-    <el-aside
-        class="aside"
-        :class="uiStore.asideShow ? 'aside-show' : 'el-aside-hide'">
-      <Aside />
-    </el-aside>
-    <div
-        :class="(uiStore.asideShow && isMobile)? 'overlay-show':'overlay-hide'"
-        @click="uiStore.asideShow = false"
-    ></div>
-    <el-container class="main-container">
-      <el-main>
-        <el-header>
-            <Header />
-        </el-header>
-        <Main />
-      </el-main>
+  <el-container class="layout" direction="vertical">
+    <el-header class="topbar">
+      <Header />
+    </el-header>
+    <el-container class="body">
+      <el-aside
+          class="aside"
+          :class="uiStore.asideShow ? 'aside-show' : 'el-aside-hide'">
+        <Aside />
+      </el-aside>
+      <div
+          :class="(uiStore.asideShow && isMobile)? 'overlay-show':'overlay-hide'"
+          @click="uiStore.asideShow = false"
+      ></div>
+      <el-container class="main-container">
+        <el-main>
+          <Main />
+        </el-main>
+      </el-container>
     </el-container>
   </el-container>
   <writer ref="writerRef" />
@@ -50,28 +52,43 @@ onBeforeUnmount(() => {
 </script>
 
 <style lang="scss" scoped>
+.topbar {
+  height: var(--topbar-height) !important;
+  background: var(--topbar-background);
+  padding: 0 !important;
+  border-bottom: 0;
+  flex-shrink: 0;
+}
+
+.body {
+  min-height: 0;
+  flex: 1;
+}
+
 .el-aside-hide {
   position: fixed;
   left: 0;
-  height: 100%;
+  top: var(--topbar-height);
+  height: calc(100% - var(--topbar-height));
+  background: var(--aside-backgound);
   z-index: 100;
   transform: translateX(-100%);
   transition: all 100ms ease;
 }
 
 .aside-show {
-  -webkit-box-shadow: var(--aside-right-border);
-  box-shadow: var(--aside-right-border);
+  border-right: 1px solid var(--el-border-color);
+  background: var(--aside-backgound);
   transform: translateX(0);
   transition: all 100ms ease;
   z-index: 101;
   @media (max-width: 1025px) {
     position: fixed;
-    top: 0;
+    top: var(--topbar-height);
     left: 0;
     z-index: 101;
-    height: 100%;
-    background: var(--el-bg-color);
+    height: calc(100% - var(--topbar-height));
+    box-shadow: 4px 0 16px rgba(0, 0, 0, .15);
   }
 }
 
@@ -100,15 +117,9 @@ onBeforeUnmount(() => {
   padding: 0;
 }
 
-.el-header {
-  background: var(--el-bg-color);
-  border-bottom: solid 1px var(--el-border-color);
-  padding: 0 0 0 0;
-}
-
 .overlay-show {
   position: fixed;
-  top: 0;
+  top: var(--topbar-height);
   left: 0;
   width: 100vw;
   height: 100vh;

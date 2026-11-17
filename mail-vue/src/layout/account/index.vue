@@ -11,29 +11,10 @@
           <div class="account">
             {{ item.email }}
           </div>
-          <div class="opt">
-            <div class="send-email" @click.stop>
-              <Icon @click="setAllReceive(item)" v-if="!item.allReceive" icon="eva:email-fill" width="22" height="22" color="#fccb1a"/>
-              <Icon @click="setAllReceive(item)" v-else icon="flat-color-icons:folder" width="22" height="22" color="#23c4f1" />
-            </div>
-            <div class="settings" @click.stop>
-              <Icon icon="fluent-color:clipboard-24" width="22" height="22" @click.stop="copyAccount(item.email)"/>
-              <Icon icon="fluent:settings-24-filled" width="21" height="21" color="#909399"
-                    v-if="showNullSetting(item)"/>
-              <el-dropdown v-else>
-                <Icon icon="fluent:settings-24-filled" width="21" height="21" color="#909399"/>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item v-if="hasPerm('email:send')" @click="openSetName(item)">{{ $t('rename') }}</el-dropdown-item>
-                    <el-dropdown-item v-if="item.accountId !== userStore.user.account.accountId" @click="setAsTop(item, index)">{{ $t('pin') }}</el-dropdown-item>
-                    <el-dropdown-item v-if="item.accountId !== userStore.user.account.accountId && hasPerm('account:delete')"
-                                      @click="remove(item)">{{ $t('delete') }}
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </div>
-          </div>
+          <span class="pin" :class="{pinned: item.sort > 0}" v-if="item.accountId !== userStore.user.account.accountId"
+                :title="item.sort > 0 ? $t('unpin') : $t('pin')" @click.stop="togglePin(item, index)">
+            <Icon :icon="item.sort > 0 ? 'fluent:pin-24-filled' : 'fluent:pin-24-regular'" width="16" height="16"/>
+          </span>
         </el-card>
 
         <!-- Initial Loading Skeleton -->
@@ -77,6 +58,18 @@
     </el-scrollbar>
     <el-dialog v-model="showAdd" :title="$t('addAccount')">
       <div class="container">
+        <div class="alias-gen">
+          <el-select v-model="aliasStyle" class="alias-style">
+            <el-option :label="$t('aliasStyleRandom')" value="random"/>
+            <el-option :label="$t('aliasStyleWord')" value="word"/>
+            <el-option :label="$t('aliasStylePrefix')" value="prefix"/>
+          </el-select>
+          <el-button @click="generateAlias">
+            <Icon icon="fluent:sparkle-24-regular" width="18" height="18" style="margin-right: 4px"/>
+            {{ $t('aliasGenerate') }}
+          </el-button>
+        </div>
+        <div class="alias-hint">{{ $t('aliasHint') }}</div>
         <el-input v-model="addForm.email" ref="addRef" type="text" :placeholder="$t('emailAccount')" autocomplete="off" @keyup.enter="submit">
           <template #append>
             <div @click.stop="openSelect">
@@ -105,13 +98,15 @@
         </el-button>
       </div>
       <div
+          ref="turnstileContainer"
+          :key="turnstileContainerKey"
           class="add-email-turnstile"
           :class="verifyShow ? 'turnstile-show' : 'turnstile-hide'"
           :data-sitekey="settingStore.settings.siteKey"
           data-callback="onTurnstileSuccess"
           data-error-callback="onTurnstileError"
       >
-        <span style="font-size: 12px;color: #F56C6C" v-if="botJsError">{{ $t('verifyModuleFailed') }}</span>
+        <span style="font-size: 12px;color: #F56C6C" v-if="botJsError">{{ $t('verifyModuleFailed', {action: $t('add')}) }}</span>
       </div>
     </el-dialog>
     <el-dialog v-model="setNameShow" :title="$t('changeUserName')">
@@ -134,7 +129,8 @@ import {
   accountDelete,
   accountSetName,
   accountSetAllReceive,
-  accountSetAsTop
+  accountSetAsTop,
+  accountUnpin
 } from "@/request/account.js";
 import {sleep} from "@/utils/time-utils.js"
 import {isEmail} from "@/utils/verify-utils.js";
@@ -145,6 +141,7 @@ import {useUserStore} from "@/store/user.js";
 import {hasPerm} from "@/perm/perm.js"
 import {useI18n} from "vue-i18n";
 import {AccountAllReceiveEnum} from "@/enums/account-enum.js";
+import {reloadTurnstileScript} from "@/utils/turnstile-script.js";
 
 const {t} = useI18n();
 const userStore = useUserStore();
@@ -169,11 +166,42 @@ let turnstileId = null
 const botJsError = ref(false)
 let verifyToken = ''
 let verifyErrorCount = 0
+let turnstileRecoveryAttempted = false
+const turnstileContainer = ref(null)
+const turnstileContainerKey = ref(0)
 let first = true
 const addForm = reactive({
   email: '',
   suffix: settingStore.domainList[0]
 })
+const aliasStyle = ref('random')
+const ALIAS_WORDS = ['maple', 'river', 'cedar', 'amber', 'coral', 'ember', 'frost', 'haven', 'lunar', 'olive', 'pearl', 'quartz', 'raven', 'solar', 'tidal', 'velvet', 'willow', 'zephyr', 'aurora', 'breeze']
+
+function randomChars(length, chars) {
+  const buf = new Uint32Array(length)
+  crypto.getRandomValues(buf)
+  return Array.from(buf, n => chars[n % chars.length]).join('')
+}
+
+// 生成别名：random 完全随机；word 单词+数字；prefix 保留你输入的前缀，只追加随机码
+function generateAlias() {
+  const letters = 'abcdefghjkmnpqrstuvwxyz'
+  const alnum = 'abcdefghjkmnpqrstuvwxyz23456789'
+  if (aliasStyle.value === 'word') {
+    const word = ALIAS_WORDS[crypto.getRandomValues(new Uint32Array(1))[0] % ALIAS_WORDS.length]
+    addForm.email = word + randomChars(4, '23456789')
+  } else if (aliasStyle.value === 'prefix') {
+    const prefix = (addForm.email || '').split('@')[0].replace(/-[a-z0-9]{5}$/, '').trim()
+    if (!prefix) {
+      ElMessage({message: t('aliasNeedPrefix'), type: 'warning', plain: true})
+      return
+    }
+    addForm.email = prefix + '-' + randomChars(5, alnum)
+  } else {
+    addForm.email = randomChars(1, letters) + randomChars(9, alnum)
+  }
+}
+
 let skeletonRows = 10
 const queryParams = {
   size: 30
@@ -198,6 +226,26 @@ watch(() => settingStore.domainList, (list) => {
 
 const openSelect = () => {
   mySelect.value.toggleMenu()
+}
+
+async function recoverTurnstile() {
+  if (turnstileRecoveryAttempted) return
+  turnstileRecoveryAttempted = true
+  botJsError.value = false
+  verifyToken = ''
+  turnstileId = null
+  turnstileContainerKey.value++
+  try {
+    const api = await reloadTurnstileScript()
+    await nextTick()
+    if (!showAdd.value || !turnstileContainer.value) return
+    turnstileId = api.render(turnstileContainer.value)
+  } catch (error) {
+    botJsError.value = true
+    console.warn('Turnstile recovery failed', error)
+  } finally {
+    turnstileRecoveryAttempted = false
+  }
 }
 
 window.onTurnstileError = (e) => {
@@ -353,6 +401,18 @@ function add() {
   }, 100)
 }
 
+function togglePin(account, index) {
+  if (account.sort > 0) {
+    accountUnpin(account.accountId).then(() => {
+      account.sort = 0
+      ElMessage({message: t('setSuccess'), type: 'success', plain: true})
+      refresh()
+    })
+  } else {
+    setAsTop(account, index)
+  }
+}
+
 function setAsTop(account, index) {
   accountSetAsTop(account.accountId).then(() => {
     ElMessage({
@@ -361,6 +421,7 @@ function setAsTop(account, index) {
       plain: true,
     })
 
+    account.sort = 1;
     const [item] = accounts.splice(index, 1);
     accounts.splice(1, 0, item);
 
@@ -459,6 +520,7 @@ function submit() {
   }
 
   if (!verifyToken && (settingStore.settings.addEmailVerify === 0 || (settingStore.settings.addEmailVerify === 2 && settingStore.settings.addVerifyOpen))) {
+    if (turnstileRecoveryAttempted) return
     if (!verifyShow.value) {
       verifyShow.value = true
       nextTick(() => {
@@ -468,12 +530,15 @@ function submit() {
           } catch (e) {
             botJsError.value = true
             console.log('人机验证js加载失败')
+            recoverTurnstile()
           }
         } else {
           window.turnstile.reset('.add-email-turnstile')
         }
       })
-    } else if (!botJsError.value) {
+    } else if (botJsError.value) {
+      recoverTurnstile()
+    } else {
       ElMessage({
         message: t('botVerifyMsg'),
         type: "error",
@@ -584,16 +649,21 @@ path[fill="#ffdda1"] {
   .item {
     background-color: var(--el-bg-color);
     border-radius: 8px;
-    padding: 10px;
-    margin-bottom: 11px;
+    padding: 9px 10px;
+    margin-bottom: 6px;
     margin-left: 10px;
     margin-right: 10px;
     cursor: pointer;
 
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
     .account {
+      flex: 1;
+      min-width: 0;
       font-weight: 400;
-      font-size: 15px;
-      margin-bottom: 20px;
+      font-size: 14px;
       overflow: hidden;
       white-space: nowrap;
       text-overflow: ellipsis;
@@ -619,7 +689,21 @@ path[fill="#ffdda1"] {
 
     :deep(.el-card__body) {
       padding: 0;
+      display: flex;
+      align-items: center;
+      width: 100%;
     }
+
+    .pin {
+      display: flex;
+      color: #909399;
+      opacity: 0;
+      transition: opacity .15s;
+      &:hover { color: var(--el-color-primary); }
+    }
+
+    .pin.pinned { opacity: 1; color: var(--el-color-primary); }
+    &:hover .pin { opacity: 1; }
   }
 
   .item:first-child {
@@ -679,4 +763,22 @@ path[fill="#ffdda1"] {
   position: fixed;
 }
 
+</style>
+
+<style lang="scss" scoped>
+.alias-gen {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+
+  .alias-style {
+    flex: 1;
+  }
+}
+
+.alias-hint {
+  font-size: 12px;
+  color: var(--secondary-text-color);
+  margin-bottom: 12px;
+}
 </style>

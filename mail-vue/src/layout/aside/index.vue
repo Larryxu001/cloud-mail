@@ -1,11 +1,11 @@
 <template>
   <el-scrollbar class="scroll">
     <div>
-      <div class="title" >
-        <Icon icon="mdi:email-outline" width="24" height="24" />
-        <div>{{settingStore.settings.title}}</div>
+      <div class="new-mail" v-perm="'email:send'" @click="openWriter">
+        <Icon icon="fluent:mail-edit-24-regular" width="20" height="20" />
+        <span>{{ $t('newMail') }}</span>
       </div>
-      <el-menu :collapse="false" text-color="#fff" active-text-color="#fff" style="margin-top: 10px">
+      <el-menu :collapse="false" text-color="var(--aside-text-color)" active-text-color="var(--el-color-primary)" style="margin-top: 6px">
         <el-menu-item @click="router.push({name: 'email'})" index="email"
                       :class="route.meta.name === 'email' ? 'choose-item' : ''">
           <Icon icon="hugeicons:mailbox-01" width="20" height="20" />
@@ -71,85 +71,95 @@
 
 <script setup>
 import router from "@/router/index.js";
+import {computed} from "vue";
 import { useRoute } from "vue-router";
 import {Icon} from "@iconify/vue";
 import {useSettingStore} from "@/store/setting.js";
+import {useUiStore} from "@/store/ui.js";
 
 const settingStore = useSettingStore();
+const uiStore = useUiStore();
 const route = useRoute();
+const logoUrl = `${import.meta.env.BASE_URL}mail.png`
+const titleUsesDisplayFont = computed(() => !/\p{Script=Han}/u.test(settingStore.settings.title || ''))
+
+function openCompose() {
+  uiStore.writerRef.open()
+}
+
+function openWriter() {
+  uiStore.writerRef.open()
+}
 
 </script>
 
 <style lang="scss" scoped>
 
-.title {
-  margin: 15px 10px;
-  height: 45px;
-  border-radius: 6px;
+.new-mail {
+  margin: 12px 12px 6px;
+  height: 36px;
+  border-radius: 4px;
   display: flex;
-  position: relative;
-  font-size: 16px;
-  font-weight: bold;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
   color: #ffffff;
-  background: linear-gradient(135deg, #1890ff, #3a80dd);
-  transition: all 0.3s ease;
-  max-width: 240px;
-  padding: 0 10px;
-  > div {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    max-width: calc(240px - 20px - 30px);
-  }
-
-  :deep(.el-icon) {
-    flex-shrink: 0;
-    font-size: 20px;
-  }
-
-  .user-right-icon {
-    align-self: center;
-    position: absolute;
-    font-size: 12px;
-    right: 8px;
-    color: #ffffff;
-  }
-
+  background: var(--el-color-primary);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
 }
 
+.new-mail:hover {
+  background: var(--el-color-primary-dark-2);
+}
 
 .manage-title {
-  margin-top: 10px;
-  padding-left: 20px;
-  color: #fff;
+  margin-top: 14px;
+  padding: 0 20px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--secondary-text-color);
 }
 
 .el-menu-item {
-  margin: 3px 10px !important;
-  border-radius: 6px;
+  margin: 1px 8px !important;
+  border-radius: 4px;
   height: 36px;
   padding: 10px !important;
+  font-size: 14px;
+  position: relative;
 }
 
 .choose-item {
-  font-weight: 400;
+  font-weight: 600;
+  color: var(--el-color-primary) !important;
   background: var(--aside-menu-active-background) !important;
-  backdrop-filter: blur(4px);
+}
+
+.choose-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--el-color-primary);
 }
 
 @media (hover: hover) {
   .el-menu-item:hover {
-    background: rgba(255, 255, 255, 0.08) !important;
+    background: var(--aside-hover-background) !important;
   }
 }
 
 .menu-name {
   user-select: none;
 }
-
 
 :deep(.el-scrollbar__wrap--hidden-default ) {
   background: var(--aside-backgound) !important;
@@ -170,10 +180,6 @@ const route = useRoute();
 
 :deep(.el-divider__text) {
   background: var(--aside-backgound);
-  color: #FFFFFF;
-}
-
-.scroll {
-
+  color: var(--aside-text-color);
 }
 </style>
